@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+package twist;
+
+import "google/protobuf/timestamp.proto";
+
+service Commander {
+  rpc CreateTransaction(CreateTransactionRequest) returns (CreateTransactionReply) {}
+  rpc ConfirmTransaction(ConfirmTransactionRequest) returns (ConfirmTransactionReply) {}
+  rpc CancelTransaction(CancelTransactionRequest) returns (CancelTransactionReply) {}
+}
+
+message CreateTransactionRequest {
+  string mode = 1;
+}
+
+message CreateTransactionReply {
+  bool success = 1;
+  string transactionID = 2;
+}
+
+message ConfirmTransactionRequest {
+  string transactionID = 1;
+  repeated TransactionTask tasks = 2;
+  google.protobuf.Timestamp expires = 3;
+}
+
+message ConfirmTransactionReply {
+  bool success = 1;
+  string transactionID = 2;
+}
+
+message TransactionTask {
+  TransactionTaskAction confirm = 1;
+  TransactionTaskAction cancel  = 2;
+}
+
+message TransactionTaskAction {
+  string Type = 1;
+  string method = 2;
+  string uri = 3;
+  map<string, string> headers = 4;
+  string payload = 5;
+}
+
+message CancelTransactionRequest {
+  string transactionID = 1;
+}
+
+message CancelTransactionReply {
+  bool success = 1;
+  string transactionID = 2;
+}

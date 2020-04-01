@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package twist;
+
+service Supervisor {
+  rpc PrepareTransaction(PrepareTransactionRequest) returns (PrepareTransactionReply) {}
+  rpc UpdateAssignment(UpdateAssignmentRequest) returns (UpdateAssignmentReply) {}
+}
+
+message TransactionRequest {
+  string transactionID = 1;
+  string mode = 2;
+}
+
+message TransactionEvent {
+  string transactionID = 1;
+  string RunnerID = 2;
+  string eventName = 3;
+  string payload = 4;
+}
+
+message PrepareTransactionRequest {
+  string transactionID = 1;
+  string mode = 2;
+}
+
+message PrepareTransactionReply {
+  bool success = 1;
+  string transactionID = 2;
+}
+
+message UpdateAssignmentRequest {
+  string transactionID = 1;
+  string runnerID = 2;
+}
+
+message UpdateAssignmentReply {
+  bool success = 1;
+}

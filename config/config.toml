@@ -1,0 +1,9 @@
+[service]
+port = 45555
+
+[supervisor]
+protocol = "grpc"
+host = "0.0.0.0:45556"
+
+[signal_server]
+host = "0.0.0.0:32803"

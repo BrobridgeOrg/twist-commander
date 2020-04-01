@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package twist;
+
+import "google/protobuf/any.proto";
+
+service Runner {
+}
+
+message TransactionCommand {
+  string transactionID = 1;
+  string command = 2;
+  google.protobuf.Any payload = 3;
+}
