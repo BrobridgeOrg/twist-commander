@@ -6,6 +6,7 @@ import "google/protobuf/timestamp.proto";
 
 service Commander {
   rpc CreateTransaction(CreateTransactionRequest) returns (CreateTransactionReply) {}
+  rpc RegisterTasks(RegisterTasksRequest) returns (RegisterTasksReply) {}
   rpc ConfirmTransaction(ConfirmTransactionRequest) returns (ConfirmTransactionReply) {}
   rpc CancelTransaction(CancelTransactionRequest) returns (CancelTransactionReply) {}
 }
@@ -15,6 +16,16 @@ message CreateTransactionRequest {
 }
 
 message CreateTransactionReply {
+  bool success = 1;
+  string transactionID = 2;
+}
+
+message RegisterTasksRequest {
+  string transactionID = 1;
+  repeated TransactionTask tasks = 2;
+}
+
+message RegisterTasksReply {
   bool success = 1;
   string transactionID = 2;
 }

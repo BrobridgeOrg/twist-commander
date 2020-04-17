@@ -24,9 +24,42 @@ type Task struct {
 }
 
 type ConfirmTransactionRequest struct {
-	TransactionID string `json:"transactionID"`
-	Tasks         []Task `json:"tasks"`
-	Expires       uint64 `json:"expires"`
+	Tasks   []Task `json:"tasks"`
+	Expires uint64 `json:"expires"`
+}
+
+type UpdateTransactionRequest struct {
+	Tasks   []Task `json:"tasks"`
+	Expires uint64 `json:"expires"`
+}
+
+func prepareTasks(tasks []Task) []*pb.TransactionTask {
+
+	// Prepare tasks
+	transactionTasks := make([]*pb.TransactionTask, 0)
+	for _, task := range tasks {
+
+		t := &pb.TransactionTask{}
+		transactionTasks = append(transactionTasks, t)
+
+		for name, action := range task.Actions {
+			log.Info(action)
+			act := &pb.TransactionTaskAction{
+				Type:    action.Type,
+				Method:  action.Method,
+				Uri:     action.Uri,
+				Headers: action.Headers,
+				Payload: action.Payload,
+			}
+			if name == "confirm" {
+				t.Confirm = act
+			} else if name == "cancel" {
+				t.Cancel = act
+			}
+		}
+	}
+
+	return transactionTasks
 }
 
 func (a *App) InitHTTPServer(host string) error {
@@ -57,6 +90,7 @@ func (a *App) InitHTTPServer(host string) error {
 		})
 	})
 
+	// Confirm transaaction
 	r.POST("/api/transactions/:transactionID", func(c *gin.Context) {
 
 		var request ConfirmTransactionRequest
@@ -67,39 +101,72 @@ func (a *App) InitHTTPServer(host string) error {
 
 		in := &pb.ConfirmTransactionRequest{
 			TransactionID: c.Param("transactionID"),
+			Tasks:         prepareTasks(request.Tasks),
 			//			Expires: request.Expires,
 		}
-
-		tasks := make([]*pb.TransactionTask, 0)
-		for _, task := range request.Tasks {
-
-			t := &pb.TransactionTask{}
-			tasks = append(tasks, t)
-
-			for name, action := range task.Actions {
-				log.Info(action)
-				act := &pb.TransactionTaskAction{
-					Type:    action.Type,
-					Method:  action.Method,
-					Uri:     action.Uri,
-					Headers: action.Headers,
-					Payload: action.Payload,
-				}
-				if name == "confirm" {
-					t.Confirm = act
-				} else if name == "cancel" {
-					t.Cancel = act
-				}
-			}
-		}
-
-		in.Tasks = tasks
 
 		reply, err := a.grpcServer.Commander.ConfirmTransaction(context.Background(), in)
 		if err != nil {
 
 			c.JSON(http.StatusBadRequest, gin.H{
-				"success": false,
+				"success":       false,
+				"transactionID": reply.TransactionID,
+			})
+
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success":       reply.Success,
+			"transactionID": reply.TransactionID,
+		})
+	})
+
+	// Update transaction and register tasks
+	r.PUT("/api/transactions/:transactionID", func(c *gin.Context) {
+
+		var request UpdateTransactionRequest
+		if err := c.ShouldBindJSON(&request); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+
+		in := &pb.RegisterTasksRequest{
+			TransactionID: c.Param("transactionID"),
+			Tasks:         prepareTasks(request.Tasks),
+			//			Expires: request.Expires,
+		}
+
+		reply, err := a.grpcServer.Commander.RegisterTasks(context.Background(), in)
+		if err != nil {
+
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success":       false,
+				"transactionID": reply.TransactionID,
+			})
+
+			return
+		}
+
+		c.JSON(http.StatusOK, gin.H{
+			"success":       reply.Success,
+			"transactionID": reply.TransactionID,
+		})
+	})
+
+	// Cancel
+	r.DELETE("/api/transactions/:transactionID", func(c *gin.Context) {
+
+		in := &pb.CancelTransactionRequest{
+			TransactionID: c.Param("transactionID"),
+		}
+
+		reply, err := a.grpcServer.Commander.CancelTransaction(context.Background(), in)
+		if err != nil {
+
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success":       false,
+				"transactionID": reply.TransactionID,
 			})
 
 			return

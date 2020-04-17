@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/golang/protobuf/ptypes"
 	"github.com/nats-io/nats.go"
 	uuid "github.com/satori/go.uuid"
 	log "github.com/sirupsen/logrus"
@@ -19,14 +18,16 @@ import (
 )
 
 type Service struct {
-	app app.AppImpl
+	app       app.AppImpl
+	commander *Commander
 }
 
-func CreateService(app app.AppImpl) *Service {
+func CreateService(a app.AppImpl) *Service {
 
 	// Preparing service
 	service := &Service{
-		app: app,
+		app:       a,
+		commander: CreateCommander(a),
 	}
 
 	return service
@@ -123,77 +124,8 @@ func (service *Service) CreateTransaction(ctx context.Context, in *pb.CreateTran
 
 func (service *Service) ConfirmTransaction(ctx context.Context, in *pb.ConfirmTransactionRequest) (*pb.ConfirmTransactionReply, error) {
 
-	success := false
-
-	// Preparing transaction command
-	cmd := &pb.TransactionCommand{
-		TransactionID: in.TransactionID,
-		Command:       "confirm",
-	}
-
-	any, err := ptypes.MarshalAny(in)
+	err := service.commander.ConfirmTransaction(in.TransactionID, in)
 	if err != nil {
-		return &pb.ConfirmTransactionReply{
-			Success:       false,
-			TransactionID: in.TransactionID,
-		}, nil
-	}
-
-	cmd.Payload = any
-
-	// Preparing command packet
-	data, err := proto.Marshal(cmd)
-	if err != nil {
-		return &pb.ConfirmTransactionReply{
-			Success: false,
-		}, nil
-	}
-
-	// Waiting for response from queue
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-
-	// Listening to queue
-	sb := service.app.GetSignalBus()
-	event, err := sb.Watch("twist.transaction."+in.TransactionID+".eventEmitted", func(msg *nats.Msg) {
-		var event pb.TransactionEvent
-		err := proto.Unmarshal(msg.Data, &event)
-		if err != nil {
-			return
-		}
-
-		// Got message that transaction was done
-		switch event.EventName {
-		case "Confirmed":
-			success = true
-			wg.Done()
-		case "Canceled":
-			wg.Done()
-		case "Timeout":
-			wg.Done()
-		}
-	})
-	if err != nil {
-		log.Error("did not connect: ", err)
-		return &pb.ConfirmTransactionReply{
-			Success:       false,
-			TransactionID: in.TransactionID,
-		}, nil
-	}
-	defer event.Unsubscribe()
-
-	// Send command to queue
-	err = sb.Emit("twist.transaction."+in.TransactionID+".cmdReceived", data)
-	if err != nil {
-		return &pb.ConfirmTransactionReply{
-			Success:       false,
-			TransactionID: in.TransactionID,
-		}, nil
-	}
-
-	wg.Wait()
-
-	if success == false {
 		return &pb.ConfirmTransactionReply{
 			Success:       false,
 			TransactionID: in.TransactionID,
@@ -201,6 +133,38 @@ func (service *Service) ConfirmTransaction(ctx context.Context, in *pb.ConfirmTr
 	}
 
 	return &pb.ConfirmTransactionReply{
+		Success:       true,
+		TransactionID: in.TransactionID,
+	}, nil
+}
+
+func (service *Service) RegisterTasks(ctx context.Context, in *pb.RegisterTasksRequest) (*pb.RegisterTasksReply, error) {
+
+	err := service.commander.RegisterTasks(in.TransactionID, in)
+	if err != nil {
+		return &pb.RegisterTasksReply{
+			Success:       false,
+			TransactionID: in.TransactionID,
+		}, nil
+	}
+
+	return &pb.RegisterTasksReply{
+		Success:       true,
+		TransactionID: in.TransactionID,
+	}, nil
+}
+
+func (service *Service) CancelTransaction(ctx context.Context, in *pb.CancelTransactionRequest) (*pb.CancelTransactionReply, error) {
+
+	err := service.commander.CancelTransaction(in.TransactionID, in)
+	if err != nil {
+		return &pb.CancelTransactionReply{
+			Success:       false,
+			TransactionID: in.TransactionID,
+		}, nil
+	}
+
+	return &pb.CancelTransactionReply{
 		Success:       true,
 		TransactionID: in.TransactionID,
 	}, nil
